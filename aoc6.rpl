@@ -1,7 +1,5 @@
 (Advent of Code 2023 - day 6)
 
-':: "aoc6.rpl" DSK> ; 'rl STO
-
 (Parse our very simple input file.)
 '::
   "aocinput6" READF DUP DUP DUP
@@ -68,7 +66,7 @@
 
 (Solve the first test.)
 '::
-  races LEN
+  parse races LEN
   ':: #1
     '::
       idx #1 - 'idx STO
@@ -82,7 +80,7 @@
 
 (Solve the second test.)
 '::
-  onedist onerace
+  parse onedist onerace
   '::     
     (Binary tree search from the middle to both sides of our wins.)
     racetime #2 / #1 + racetime #1 - bsearch 
@@ -99,9 +97,6 @@
  
 '::
   '::
-    "Searching " min + "[" + min isrecord + "] to " + max +
-    " [" + max isrecord + "]" + DISP
-    
     (If our pivot is down to 1 space, return whichever side of the pivot
      is true (e.g. whichever is a winner.)
     max min - #1 ==

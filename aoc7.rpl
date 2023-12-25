@@ -1,0 +1,223 @@
+(Advent of Code 2023 - day 7)
+
+(Remove before flight)
+':: "aoc7.rpl" DSK> ; 'rl STO
+
+(First test:)
+':: 'originaltypes cardsyms infile generalsum ;
+'firsttest STO
+
+(Second test:)
+':: 'jokertypes cardsymsJ infile generalsum ;
+'secondtest STO
+
+(Input filename.)
+"aocinput7" 'infile STO
+
+(Symbols for the cards in order of strength.)
+{ "2" "3" "4" "5" "6" "7" "8" "9" "T" "J" "Q" "K" "A" }
+'cardsyms STO
+
+(And once more for jokers.)
+{ "J" "2" "3" "4" "5" "6" "7" "8" "9" "T" "Q" "K" "A" }
+'cardsymsJ STO
+
+
+(Hand directory.)
+[dir:
+  :hand: {}
+  :value: #0 
+  :bid: #0 ]
+'handproto STO
+
+(Match a string in a list of strings.)
+'::
+  '::
+    ':: 
+      str list idx GET ==
+      (Return present index and stop if there's a match.)
+      ':: idx #0 ;
+      (Or increment index and repeat so long as there's more.)
+      ':: idx #1 + DUP 'idx STO list LEN < ;
+      IFTE ;
+    REP ;
+  { list str :idx:#0 } LOCAL ;
+'matchstr STO
+
+(Increment a value inside a list.)
+'::
+  ':: DUP subscript GET #1 + subscript PUT ;
+  { subscript } LOCAL ;
+'incinside STO
+
+(See if there are two pairs inside a cardct list.)
+'::
+  DUP LEN
+  '::
+    #0
+    '::
+      idx #1 - 'idx STO
+      cards idx GET #2 ==
+      ':: #1 + ; IFT
+      idx ;
+    REP 
+    #2 == ;
+  { idx cards } LOCAL ;
+'hastwotwos STO
+
+(The fastest way to do this is going to be to establish a single hand
+ value in base 13, so 32T3K would be:
+ 2 + 13^5 - code for two pair, second weakest hand 
+ 3 + 13^4
+ 2 + 13^3
+ T + 13^2
+ 3 + 13^1 
+   + K
+ Then it'll be simple to sort for rank by that value.)
+
+(From a single string, build up a hand.)
+'::
+  (Copy our prototype directory.)
+  handproto CP
+  (Make a list of card counts.)
+  { #0 } #13 *
+  '::
+    (First split the string around the space.)
+    " " SPLIT OBJ> DROP
+    (The second value is our bid.)
+    >INT 'hand.bid STO
+    (Now build three things at once: a list of card counts,
+     the actual hand list, and our value.)
+    '::
+      (Save our string, extract one letter, match it to a card value.)
+      DUP idx GET symbols matchstr
+      (Make a value judgment about that card according to its position.)
+      DUP #13 #4 idx - ^ * hand.value + 'hand.value STO
+      (Append our card to the hand list.)
+      DUP hand.hand SWAP + 'hand.hand STO
+      (Increment the count of that card's face.)
+      cardct SWAP incinside 'cardct STO
+      (And loop til we have all five cards.)
+      DUP LEN idx #1 + DUP 'idx STO > ;
+    REP DROP
+    gettype
+    #13 #5 ^ * hand.value + 'hand.value STO
+    (Return our completed hand directory.)
+    hand ;
+  { cardct hand :idx:#0 } LOCAL ;
+'str>hand STO
+
+(Original hand types.)
+'::
+  (The most significant digit of our hand's value is based on our card
+   counts: 5kind, 4kind, 3kind+2kind, 3kind, 2x2kind, 1x2kind, nothin'.)
+  { { :: cardct #5 HAS ; #6 }
+    { :: cardct #4 HAS ; #5 }
+    { :: cardct #3 HAS cardct #2 HAS AND ; #4 }
+    { :: cardct #3 HAS ; #3 }
+    { :: cardct hastwotwos ; #2 }
+    { :: cardct #2 HAS ; #1 }
+    { #1 #0 } }
+  CASE ;
+'originaltypes STO
+
+(Hand types with a joker.)
+'::
+  (Now, we grab the jokers count and address just the other cards, sorted
+   by count.  The largest count gets the jokers added to it.)
+  cardct #1 #12 SUBS quicksort #5 RIGHT
+  DUP #4 GET cardct #0 GET + #4 PUT
+  (From here just evaluate originaltypes against our new card count.)
+  ':: originaltypes ;
+  { cardct } LOCAL ;
+'jokertypes STO
+
+(Go through the list of hands, sorting by value, then making a product of
+ bids and ranks somehow.  Takes:
+  3: hand type function
+  2: card symbols list
+  1: input filename)
+'::
+  (First read in our file and grind it through with the original values.)
+  READF DUP LEN #1 -
+  ':: {}
+    ':: list idx GET str>hand +
+      idx #1 + DUP 'idx STO max < ;
+    REP ;
+  { max list symbols gettype :idx:#0 } LOCAL
+
+  (Sort our hands list by value, sneakily by redefining what EVAL means.)
+  ':: quicksort ; 
+  { :EVAL:
+    ::
+      ':: hand.value ;
+      { hand } LOCAL ; }
+  LOCAL
+
+  (Now go through the whole list and make a total.)
+  DUP LEN
+  '::
+    ':: 
+      idx #1 - 'idx STO
+      allhands idx GET
+      ':: hand.bid ; { hand } LOCAL
+      idx #1 + * total + 'total STO
+      idx ; 
+    REP 
+    total ;
+  { idx allhands :total:#0 } LOCAL ;
+'generalsum STO
+
+
+(Quicksort, which I've been using a whole bunch lately...)
+'::
+  (This is our local partition routine, which divides the list into two
+   partitions.)
+  '::
+    '::
+      (Make a pivot value in the middle of our part of the array.)
+      list hi lo - #2 / lo + GET EVAL 'pivot STO
+
+      lo #1 - 'lo STO
+      hi #1 + 'hi STO
+      '::
+        (Move the left index right at least once, while the element at that
+         index is less than the pivot.)
+        ':: list lo #1 + DUP 'lo STO GET EVAL pivot < ; REP
+
+        (Move the right index left at least once, while the element at that
+         index is greater than the pivot.)
+        ':: list hi #1 - DUP 'hi STO GET EVAL pivot > ; REP
+
+        lo hi >=
+
+        (If the indices crossed, fall out of the loop and return the 'hi' value.)
+        ':: hi #0 ;
+
+        (Else, swap the elements under our two cursors and repeat.)
+        ':: list hi GET list DUP lo GET
+           hi PUT
+           SWAP lo PUT 'list STO #1 ;
+        IFTE ;
+      REP ; 
+    { hi lo :pivot:#0 } LOCAL ;
+
+  (This is our local recursion routine.  It sorts some or all of the list,
+   divides it into partitions, then sorts those.)
+  '::
+    '::
+      lo #0 >= hi #0 >= AND lo hi < AND
+      '::
+        lo hi partition 'p STO 
+        lo p recurse
+        p #1 + hi recurse ;
+      IFT ;
+    { hi lo :p:() } LOCAL ;
+
+  (This is the local environment into which our subroutines go.  It presents
+   a nicer interface to the user by passing on the full bounds of the list
+   to start 'recurse' instead of making someone else do it.)
+  ':: #0 list LEN #1 - recurse list ; 
+  { recurse partition list } LOCAL ;
+{ EVAL } STATIC
+'quicksort STO

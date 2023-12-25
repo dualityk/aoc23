@@ -1,0 +1,127 @@
+(Advent of Code 2023 - day 6)
+
+':: "aoc6.rpl" DSK> ; 'rl STO
+
+(Parse our very simple input file.)
+'::
+  "aocinput6" READF DUP DUP DUP
+  (All our race lengths.)
+  #0 GET ":" SPLIT #1 GET
+  "{ " SWAP + " }" + >OBJ 
+  ':: >INT update ; FOREACH
+  'races STO
+  #1 GET ":" SPLIT #1 GET
+  "{ " SWAP + " }" + >OBJ 
+  ':: >INT update ; FOREACH
+  'dists STO 
+  
+  (Then the second way: spaces are ignored.)
+  #0 GET ":" SPLIT #1 GET
+  (Make a bunch of strings split by spaces, and add them all up.)
+  " " SPLIT OBJ> #1 - ':: + ; SWAP * EVAL >INT
+  'onerace STO
+  #1 GET ":" SPLIT #1 GET
+  " " SPLIT OBJ> #1 - ':: + ; SWAP * EVAL >INT
+  'onedist STO ;
+'parse STO
+
+(Turn a button time into a distance.  That's going to be:
+ (racetime-button\)*button, isn't it.)
+'::
+  ':: racetime button - button * record > ;
+  { button } LOCAL ;
+'isrecord STO
+
+(Solve the number of ways a single race can be won.  Accepts a record time
+ and race length.)
+'::
+  (First make a pivot point around the middle of the length of the race.)
+  DUP #2 /
+  ':: 
+    (Starting from the pivot back toward the beginning, loop until we stop
+     winning.)
+    pivot 'idx STO
+    ':: idx isrecord
+      ':: 
+        (We won, so increment ways and loop!)
+        ways #1 + 'ways STO #1 ;
+      #0 (We lost, so give up.)
+      IFTE 
+      (Only repeat as long as we won and there's more times to test.)
+      idx #1 - DUP 'idx STO AND ;
+    REP
+    pivot #1 + 'idx STO
+    (Now look from the other side of the pivot toward the end.)
+    ':: idx isrecord
+      ':: 
+        (We won, so increment ways and loop!)
+        ways #1 + 'ways STO #1 ;
+      #0 (We lost, so give up.)
+      IFTE 
+      (Only repeat as long as we won and there's more times to test.)
+      idx #1 + DUP 'idx STO racetime < AND ;
+    REP
+    (And return what we got.)
+    ways ;
+  { pivot racetime record :ways:#0 :idx:#0 } LOCAL ;
+'solveone STO
+
+(Solve the first test.)
+'::
+  races LEN
+  ':: #1
+    '::
+      idx #1 - 'idx STO
+      dists idx GET
+      races idx GET
+      solveone *
+      idx ;
+    REP ;
+  { idx } LOCAL () ;
+'firsttest STO
+
+(Solve the second test.)
+'::
+  onedist onerace
+  '::     
+    (Binary tree search from the middle to both sides of our wins.)
+    racetime #2 / #1 + racetime #1 - bsearch 
+    #1 racetime #2 / bsearch 
+    (The number of wins is between those two numbers, inclusive.)
+    - #1 + ;
+  { racetime record } LOCAL ;
+'secondtest STO
+
+(The second test uses giant numbers, so even starting nicely in the middle
+ of the range with a pivot like solveone does is going to take too long.  The
+ better way is to use a binary search to find the edges of our winning
+ number range, and then solve by simple subtraction.)
+ 
+'::
+  '::
+    "Searching " min + "[" + min isrecord + "] to " + max +
+    " [" + max isrecord + "]" + DISP
+    
+    (If our pivot is down to 1 space, return whichever side of the pivot
+     is true (e.g. whichever is a winner.)
+    max min - #1 ==
+    '::
+      min DUP isrecord * max DUP isrecord * + ;
+    (Otherwise, chase toward the false.)
+    '::
+      max min - #2 / DUP
+      (Choose which way to go based on which side is true and what our
+       pivot shows.)
+      min + isrecord
+      min isrecord max isrecord > 'NOT IFT
+      '::
+        (Going down, reduce our max by half.)
+        max SWAP - min SWAP bsearch ;
+      '::
+        (Going up, increase our min by half.)
+        min + max bsearch ;
+      IFTE ;
+    IFTE ;
+   { max min } LOCAL ;
+'bsearch STO
+   

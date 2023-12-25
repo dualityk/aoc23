@@ -1,0 +1,121 @@
+(Advent of Code 2023 day 1, step 1 and 2)
+
+(For a given input file, concatenate the first and last numerals on each
+ line, then turn them into a number.  Then sum all the values.)
+
+(Here are all the numeral numerals.)
+{ "0" "1" "2" "3" "4" "5" "6" "7" "8" "9" } 'digits STO
+
+(And here are all the word numerals.)
+{ "one" "two" "three" "four" "five" "six" "seven" "eight" "nine" } 
+'words STO
+
+(Sum a list of values.)
+'::
+  (First check to see if there's anything to sum.)
+  DUP LEN DUP
+  '::
+    (Then bounce through the list add it all up.)
+    '::
+      #0
+      '::
+        idx #1 - 'idx STO
+        list idx GET + idx ;
+      REP ;
+      { idx list } LOCAL ;
+  ':: DROP DROP #0 ;
+  IFTE ;
+'sum STO
+
+(Find only numerals, that's step 1.)
+':: str idx GET DUP digits SWAP HAS ;
+'onlynumerals STO
+
+(Find either numerals or text digits, that's step 2.)
+'::
+  (First see if there's a numeral at this location.  If there is, drop
+   straight through.)
+  onlynumerals
+  #1
+  (If there isn't, then we dance.)
+  ':: (This is our failure condition.) #0
+    (First grab our words list length and the remaining string length.) 
+    words LEN
+    str LEN idx -
+    '::
+      (Now loop through each word and see if our string is it.) 
+      '::
+        (Our index is decremented here, but kept on the stack for REP.)
+        windex #1 - DUP 'windex STO
+        words windex GET DUP LEN
+        DUP charsleft <=
+        (If there's enough space, it might be.)
+        '::
+          (Do some stack stuff to get just the characters we need.)
+          #1 - idx + str SWAP idx SWAP SUBS == 
+          (If there's a match, turn our index into a string, get rid of
+           the remaining stack detritus, and bail all the way out.)
+          ':: #1 + "" + SWAP DROP SWAP DROP #1 BAIL ;
+          IFT ;
+        ':: DROP DROP ;
+        IFTE ;
+      REP ;
+    { charsleft windex } LOCAL ;
+  IFTE ;
+'numeralsandwords STO
+
+(Find a first digit by searching from the beginning of a string.)
+'::
+  DUP LEN DUP
+  '::
+    ':: 
+      '::
+        hasnumber
+        'BAIL
+        ':: DROP idx #1 + DUP 'idx STO len ==
+           ':: "Ain't no digits" DED ; IFT #1 ; 
+        IFTE ; 
+      REP ;
+    { :idx: #0 len str } LOCAL (yerf) ;
+  ':: DROP "There's just no *length* here" DED ;
+  IFTE ;
+'firstdigit STO 
+
+(Find a second digit by starting from the end.)
+'::
+  DUP LEN DUP
+  ':: #1 -
+    ':: 
+      '::
+        hasnumber 
+        'BAIL
+        ':: DROP idx #1 - DUP 'idx STO #0 <
+           ':: "Ain't no digits" DED ; IFT #1 ; 
+        IFTE ; 
+      REP ;
+    { idx str } LOCAL (yerf) ;
+  ':: DROP "There's just no *length* here" DED ;
+  IFTE ;
+'seconddigit STO 
+
+(Main thing: read a whole file, grab first and second digits from each,
+ store back each generated number, then sum it.)
+'::
+  ':: 
+    READF
+    '::
+      (Only dig into lengthy strings.)
+      DUP LEN
+      ':: DUP firstdigit SWAP seconddigit + >INT update ;
+      ':: DROP #0 update ;
+      IFTE ;
+    FOREACH ;
+  { hasnumber } LOCAL
+  sum ;
+'mainthing STO
+
+(firstway is the solution to part 1.)
+':: "aocinput" 'onlynumerals mainthing ; 'firstway STO
+
+(secondway is the solution to part 2.)
+':: "aocinput" 'numeralsandwords mainthing ; 'secondway STO

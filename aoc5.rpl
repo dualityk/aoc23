@@ -1,0 +1,336 @@
+(Advent of Code 2023 - day 5)
+
+(The first test is solved like this:)
+'::
+  "aocinput5" READF 'intext STO parseall
+  dependencies seeds lowestlocation ;
+'firsttest STO
+
+(The second test is solved like this:)
+'::
+  "aocinput5" READF 'intext STO parseall
+  seedrange transformall quicksort #0 GET ;
+'secondtest STO
+
+(This is testing stuff.)
+':: cleanup "aocinput5t" READF 'intext STO parseall ; 'easymode STO
+':: "aoc5.rpl" DSK> ; 'rl STO
+':: {seeds seed-to-soil soil-to-fertilizer fertilizer-to-water
+water-to-light light-to-temperature temperature-to-humidity
+humidity-to-location dependencies } ':: RM ; FOREACH DROP ;
+'cleanup STO
+
+(For two numbers, return the larger one, basically from day 2.)
+':: ':: x y < 'x 'y IFTE ; { y x } LOCAL ;
+'lesser STO
+
+(This is a single map line, containing:
+  src: minimum source number
+  srcend: derived maximum source number
+  delta: derived delta where source + delta = dest.)
+'::
+  :map: [dir:
+    :src: #0
+    :srcend: #0
+    :delta: #0 ]
+  'map >TYPE
+  
+  (Also include a basic string representation to make it easier to read.)
+  {
+    { 
+      :: 
+        '::
+          "[Map from " map.src + 
+          "-" + map.srcend + " to " + map.src map.delta + + "]" + ; 
+        METH ;
+      Types.map } }
+  '`>STR HOOK 
+  
+  (And hook EVAL so that it returns map.src against a map object.)
+  { { mapsrcmin Types.map } }
+  '`EVAL HOOK ;
+'regtype STO
+
+(Rummage through our input text to grab and create our seeds and map lists.)
+'::
+  (First there's the seeds list.  We'll dumbly grab this from the first
+   line, ignoring the word and snagging the numbers, and convert to ints.)
+  intext #0 GET
+  ":" SPLIT #1 GET
+  " }" + "{ " SWAP + >OBJ
+  ':: >INT update ; FOREACH
+  'seeds STO
+  
+  (Then for the second part, our seed range list.  This is seeds, but...)
+  seeds 'seedrange STO
+  '::
+    ':: seedrange DUP DUP 
+      idx GET idx #1 + 'idx STO
+      SWAP idx GET +
+      idx PUT 'seedrange STO      
+      idx #1 + DUP 'idx STO
+      seedrange LEN < ;
+    REP ;
+  { :idx:#0 } LOCAL 
+  (Make a dependency list, assuming all maps are in order.)
+  {} 'dependencies STO
+  
+  (Starting from line 3, alternate between getting a list name and map
+   data.)
+  intext LEN
+  ':: 
+    '::
+      (Get current line.)
+      intext idx GET DUP LEN
+      (If there's something on this line...)
+      ':: 
+        inmap (Are we in a map?)
+        (Yes: parse map line and append to current map list.)
+        ':: str>map currentmap EVAL SWAP + currentmap STO ;
+        (No: get our new map name and make a null list.)
+        '::
+          #1 'inmap STO
+          (The current map *name* is stored, pointing to where the list is.)
+          " " SPLIT #0 GET >SYM QUOTE 'currentmap STO
+          {} currentmap STO ;
+        IFTE ;
+      (Blank lines mean we've left the current map.)
+      ':: 
+        DROP #0 'inmap STO
+        (XXX Sort it, for now.)
+        currentmap EVAL quicksort
+        (And if the map doesn't start at 0, add a null transform to the
+         beginning covering the range of 0-whatever.)
+        DUP #0 GET mapsrcmin DUP
+        '::
+          (Make a new null map entry from 0 to mapsrcmin-1.)
+          #1 - #0 SWAP #0 int>map SWAP + ;
+        'DROP
+        IFTE
+        currentmap STO
+        (Add the name we finished to our dependencies chart.)
+        dependencies currentmap + 'dependencies STO ;
+      IFTE
+      idx #1 + DUP 'idx STO max < ;
+    REP ;
+  { max :idx: #2 :inmap: #0 :currentmap: (none) } LOCAL ;
+'parseall STO
+
+(Turn a string of three numbers into a map.)
+'::
+  >OBJ
+  Types.Proto.map CP
+  '::
+    (Fully copy the prototype directory.)
+    map CP 'map STO
+    (The run comes first, but we want the low source, which is next.)
+    >INT SWAP 
+    >INT DUP 'map.src STO
+    (Derive the maximum source value and store it.)
+    + #1 - 'map.srcend STO
+    (And the delta to convert a source number into a destination.)
+    >INT map.src - 'map.delta STO
+    (Then return our new map object.)
+    'map DEREF ;
+  METH ;
+'str>map STO
+
+(Turn three integers into a map.)
+'::
+  Types.Proto.map CP
+  '::
+    map CP 'map STO
+    'map.delta STO
+    'map.srcend STO
+    'map.src STO
+    'map DEREF ;
+  METH ;
+'int>map STO
+
+(See if a map line matches an input value.  Return original and false if it
+ doesn't, and remapped value and true if it does.)
+'::
+  ':: 
+    DUP DUP map.src >= SWAP map.srcend <= AND 
+    ':: map.delta + #1 ; #0 IFTE ;
+  METH ;
+'mapone STO
+
+(Run through a list of map lines and return a final value.  Accepts a source 
+ value and a map list.)
+'::
+  DUP LEN
+  '::
+    '::
+      list idx GET mapone
+      (Loop if idx<max and we're still searching.)
+      NOT idx #1 + DUP 'idx STO max < AND ;
+    REP ;
+  { max list :idx:#0 } LOCAL ;
+'maplist STO
+
+(Run through all the dependencies in order and return a final value. 
+ Accepts a source value and dependencies list.)
+'::
+  DUP LEN
+  '::
+    '::
+      deps idx GETE maplist
+      idx #1 + DUP 'idx STO max  < ;
+    REP ;
+  { max deps :idx: #0 } LOCAL ;
+'mapdeps STO
+
+(The first test wants the lowest value of all the seeds as processed through
+ all the lists.  This accepts a dependencies list and a list of seeds, and
+ returns just the lowest value.)
+'::
+  DUP LEN
+  '::
+    ':: 
+      seeds
+      idx #1 - DUP 'idx STO GET
+      (Get a destination value, then store the lesser of it and min.)
+      deps mapdeps
+      (But only if min!=0.)
+      min DUP 'lesser 'DROP IFTE 'min STO 
+      idx ;
+    REP min ;
+  { idx seeds deps :min:#0 } LOCAL ;
+'lowestlocation STO
+
+(The second test wants the lowest value too, but treating the seeds list as
+ alternating start and range numbers.  Brute force is not going to feasibly
+ solve the full sized test numbers.)
+
+(We need to take a sorted list of maps, a low/high range, and return a list
+ of transformed ranges.)
+'::
+  '::
+    '::
+      (Evaluate addrange against each map line.)
+      maps idx GET addrange
+      (Run through all the map lines or end of range.)
+      idx #1 + DUP 'idx STO maps LEN < 
+      inputmax inputmin >= AND ;
+    REP
+    (Clean up any of our input range not covered by the map list.)
+    inputmin inputmax <
+    '::
+      newrange inputmin + inputmax + 'newrange STO ;
+    IFT
+    (Don't forget to return the new range.)
+    newrange ;
+  { inputmax inputmin maps :newrange: {} :idx: #0 } LOCAL ;
+'transformonerange STO
+
+(For a given map line, add an output range as appropriate.)
+'::
+  ':: 
+    inputmin map.src >= inputmin map.srcend <= AND 
+    (Line is only valid if input low bound is inside map bounds.)
+    ':: 
+      (It's valid, so append a transformed inputmin to newrange.)
+      newrange inputmin map.delta + +
+      (Now the new inputmin is the lesser of inputmax and map.srcend, +1.)
+      inputmax map.srcend lesser DUP #1 + 'inputmin STO
+      (And our upper bound for newrange is the lesser+delta.)
+      map.delta + + 'newrange STO ; 
+    IFT ;
+  METH ;
+'addrange STO
+
+(Transform one line of ranges against one map list.)
+'::
+  '::
+    ':: maplist
+       inputlist idx GET inputlist idx #1 + GET 
+       transformonerange finalrange SWAP + 'finalrange STO 
+       idx #2 + DUP 'idx STO inputlist LEN < ;
+    REP
+    finalrange ;
+  { maplist inputlist :idx: #0 :finalrange: {} } LOCAL ;
+'transformlist STO
+
+(Transform all seeds into one big list of output ranges.)
+'::
+  '::
+    '::
+      dependencies idx GETE
+      transformlist
+      idx #1 + DUP 'idx STO dependencies LEN < ;
+    REP ;
+  { :idx: #0 } LOCAL ;
+'transformall STO
+
+(Hoare partition scheme quicksort, lifted from Wikipedia a while ago,
+ lightly tweaked to just sort by minimum source value.)
+
+(Get just src out of a map.)
+':: ':: map.src ; METH ;
+'mapsrcmin STO
+
+(Get just srcmax out of a map.)
+':: ':: map.srcend ; METH ;
+'mapsrcmax STO
+
+(Our big routine is 'sort', and it contains two subroutines, 'partition'
+ and 'recurse'.  Technically it only needs to have 'recurse', with the
+ partition part embedded, but this is a direct port of the Wikipedia 
+ pseudocode.)
+
+'::
+  (This is our local partition routine, which divides the list into two
+   partitions.)
+  '::
+    '::
+      (Make a pivot value in the middle of our part of the array.)
+      list hi lo - #2 / lo + GET EVAL 'pivot STO
+
+      lo #1 - 'lo STO
+      hi #1 + 'hi STO
+      '::
+        (Move the left index right at least once, while the element at that
+         index is less than the pivot.)
+        ':: list lo #1 + DUP 'lo STO GET EVAL pivot < ; REP
+
+        (Move the right index left at least once, while the element at that
+         index is greater than the pivot.)
+        ':: list hi #1 - DUP 'hi STO GET EVAL pivot > ; REP
+
+        lo hi >=
+
+        (If the indices crossed, fall out of the loop and return the 'hi' value.)
+        ':: hi #0 ;
+
+        (Else, swap the elements under our two cursors and repeat.)
+        ':: list hi GET list DUP lo GET
+           hi PUT
+           SWAP lo PUT 'list STO #1 ;
+        IFTE ;
+      REP ; 
+    { hi lo :pivot:#0 } LOCAL ;
+
+  (This is our local recursion routine.  It sorts some or all of the list,
+   divides it into partitions, then sorts those.)
+  '::
+    '::
+      lo #0 >= hi #0 >= AND lo hi < AND
+      '::
+        lo hi partition 'p STO 
+        lo p recurse
+        p #1 + hi recurse ;
+      IFT ;
+    { hi lo :p:() } LOCAL ;
+
+  (This is the local environment into which our subroutines go.  It presents
+   a nicer interface to the user by passing on the full bounds of the list
+   to start 'recurse' instead of making someone else do it.)
+  ':: #0 list LEN #1 - recurse list ; 
+  { recurse partition list } LOCAL ;
+STATICN
+'quicksort STO
+
+
+(Once per load, register our types and some other bits and bobs.)
+regtype

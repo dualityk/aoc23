@@ -1,0 +1,169 @@
+(Advent of Code 2023 - day 2)
+
+(This does the first part of the test:)
+':: 'firstiterator "aocinput2" checkfile ; 'firsttest STO
+
+(And this does the second part:)
+':: 'seconditerator "aocinput2" checkfile ; 'secondtest STO
+
+( Wee utilities )
+
+(For two numbers, return the larger one.)
+':: ':: x y > 'x 'y IFTE ; { y x } LOCAL ;
+'greater STO
+
+(For a list, return the product of the whole thing.)
+':: OBJ> #1 -
+   ':: 
+     ':: * idx #1 - DUP 'idx STO ;
+     REP ;
+   { idx } LOCAL ;
+'listproduct STO
+
+
+( Text parsing stuff )
+
+(From an input string, return a list of individual game strings and the
+ game number.)
+'::
+  (Bisect the string around the colon.)
+  ":" SPLIT OBJ> DROP
+  (Everything after, split it around semicolons to get a list of 
+   individual games.)
+  ";" SPLIT SWAP
+  (Then split 'Game n' around the space; our second word is the 
+   actual game number.)
+  " " SPLIT #1 GET >INT ;
+'gamenumber STO
+
+(From a game string, tally each color, and return { R G B } as integers.)
+'::
+  '::
+    (Split the game string around commas, returning cube counts.)
+    "," SPLIT
+    (Then, for each thing, cheekily parse and store it using the input text
+     as a symbol.)
+    ':: >OBJ STO ;
+    FOREACH DROP
+    (Coerce them into integers and return as a list.)
+    red >INT green >INT blue >INT #3 >LST ;
+  { :red: 0 :green: 0 :blue: 0 }
+  LOCAL ;
+'cubecount STO
+
+
+( List comparison stuff for test 1 )
+
+(Compare two lists item by item.  Accepts two identically sized lists, and
+ a comparison object to evaluate against them.  Returns true if it ever
+ finds true.  Lists must be nonzero.)
+'::
+  '::
+    #0 (This will end up on the stack if we never find a true.)
+    (Grab our list length.)
+    listA LEN 'idx STO
+    '::
+      (Decrement index, leave one on the stack for REP.) 
+      idx #1 - DUP 'idx STO
+      (Grab our two list values and compare.)
+      listA idx GET listB idx GET compare
+      (Can our #0 and our index and bail if we found one.)
+      ':: DROP DROP #1 BAIL ; IFT ;
+    REP ;
+  { compare listB listA :idx: #0 } LOCAL ;
+'compare2 STO
+
+(Compare a list of games against one criteria.  Unlike compare2, we're
+ looking for all trues and return false if any are false.  This accepts the
+ input list of games { { r g b } { r g b } ... } and comparison code e.g.
+ elfquery.)
+'::
+  '::
+    #1 (This will end up on the stack if all are true.)
+    (Still grab our list length.)
+    list LEN 'idx STO
+    '::
+      (Decrement index, leave one on the stack for REP.) 
+      idx #1 - DUP 'idx STO
+      (Grab our list entry and compare.)
+      list idx GET compare
+      ':: DROP DROP #0 BAIL ; IFT ;
+    REP ;
+  { compare list :idx: #0 } LOCAL ;
+'checkgames STO
+
+(From puzzle A, the elf wants to know about 12 red, 13 green, 14 blue.
+ This returns true for a failure, not a success.)
+':: { #12 #13 #14 } '> compare2 ;
+'elfquery STO
+
+
+( Test 2 addition )
+
+(For a list of games, find the maximum of each color.)
+'::
+  DUP LEN
+  ':: 
+    '::
+      list idx #1 - DUP 'idx STO
+      (Forget about the list part for now, we know what we're doin'.)
+      GET OBJ> DROP
+      (Store back the greater of each color.)
+      blue greater 'blue STO
+      green greater 'green STO
+      red greater 'red STO
+      idx ;
+    REP
+    (Return an RGB list as expected.)
+    red green blue #3 >LST ;
+  { idx list :red: #0 :green: #0 :blue: #0 } LOCAL ;
+'maxcolors STO
+
+
+( Per-line iterators for both tests )
+
+(For test 1, figure out if the game was valid, and add that to the tally of
+ game numbers that were valid.  This is what the puzzle is actually asking
+ for.  It receives the game number and the list of plays.)
+':: 
+  (Then check our games for this line against the query.)
+  'elfquery checkgames
+  (If we got a good game, add the number to our sum.  Otherwise drop it.)
+  ':: sum + 'sum STO ;
+  'DROP
+  IFTE ;
+'firstiterator STO
+
+(For test 2, we're not checking anything, just finding the maximum value of
+ each color per line, then finding the product 'power' of each line and
+ adding it to the sum.)
+'::
+  (So first do that thing.)
+  maxcolors listproduct sum + 'sum STO 
+  (Then drop the game number, since we don't use it.)
+  DROP ;
+'seconditerator STO
+
+
+( And the grand unified read-and-process loop )
+
+(Load up a whole ass file of games and numbers, and for each of them, do
+ whatever it is we're supposed to do.  Since both tests use a sum, that goes
+ here.)
+'::
+  READF SWAP
+  '::
+    ':: 
+      (Skip any empty lines.)
+      DUP LEN 
+      ':: 
+        (Get our game number, then normalize all the games into RGB lists.)
+        gamenumber SWAP
+        ':: cubecount update ; FOREACH
+        (And see what our test wants to do with it.)
+        querything ;
+      'DROP
+      IFTE ;
+    FOREACH DROP sum ;
+  { querything :sum: #0 } LOCAL ;
+'checkfile STO

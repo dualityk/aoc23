@@ -1,0 +1,148 @@
+(Advent of Code 2023 - day 4)
+
+(This returns the result of the first test.)
+':: getem sumpoints ; 'firsttest STO
+
+(This returns the result of the second test.)
+':: getem towinnings allcards ; 'secondtest STO
+
+(Parse our input file.)
+':: "aocinput4" readcards ; 'getem STO
+
+(Sum a list of values, the sneaky way:
+  - If the list is null, the sum is 0
+  - If it has one entry, the sum is that entry
+  - If it has more, make a code block of a ton of pluses and evaluate it)
+':: OBJ> DUP
+  ':: #1 - DUP
+    ':: ':: + ; SWAP * EVAL ;
+    'DROP
+    IFTE ;
+  IFT ;
+'sum STO
+
+(Make a list of parsed 'n tidy scratchoffs from our input data.)
+'::
+  READF DUP LEN
+  '::
+    {}
+    ':: 
+      input idx GET DUP LEN 
+      ':: mkcard + ; 'DROP IFTE
+      idx #1 + DUP 'idx STO max < ;
+    REP ;
+  { max input :idx: #0 } LOCAL ;
+'readcards STO
+
+(From one text line, build a scratchoff card and return it as a directory.)
+'::
+  MKDIR
+  '::
+    (First fetch the card number.  I'd like a FROMLEFT/FROMRIGHT string
+     splicing tool, but I'd rather not modify the language mid-puzzle.)
+    ":" SPLIT DUP #0 GET #4 #12 SUBS >INT
+    'card.num STO
+    (Then, get the various numbers.)
+    #1 GET "|" SPLIT OBJ> DROP
+    tolist 'card.ours STO
+    tolist 'card.winners STO
+    card ; 
+{ card } LOCAL ;
+'mkcard STO
+
+(Turn a text string of numbers into a list of integers.)
+'::
+  (We have a parser, so use it!)
+  " }" + "{ " SWAP + >OBJ
+  (And then turn all those floats into ints.)
+  ':: >INT update ; FOREACH ;
+'tolist STO
+
+(For a given card, return a list of the winning numbers.)
+'::
+  '::
+    (Dump our numbers all over the stack, then snatch up the count.)
+    card.ours OBJ>
+    '::
+      (The first pass pulls the index off the stack and decrements.)
+      #1 - 'idx STO
+      (Then we see if our number is in the winners list.)
+      DUP card.winners SWAP HAS
+      ':: (Yes, add it to matches.) matches SWAP + 'matches STO ;
+      'DROP (No, drop our duplicate.)
+      IFTE
+      (One idx gets pulled as the REP condition; the other gets eaten up top.)
+      idx DUP ;
+    REP DROP matches ;
+  { card :matches: {} :idx: (nothin') } LOCAL ;
+'winnings STO
+
+(For a given list of winning numbers, return the number of points awarded.)
+'::
+  (Is there a length?)
+  LEN DUP
+  (If so, return points as 2^(length-1\).  Otherwise fall through with 0.)
+  ':: #1 - #2 SWAP ^ ;
+  IFT ;
+'points STO
+
+(Sum all the points from a list of cards.  This is what the first test wants.)
+'::
+  OBJ>
+  '::
+    #0 (Starting points count.)
+    '::
+      (Swap the current sum with the next card on the stack, find winnings
+       and points, and add to the sum.)
+      SWAP winnings points +
+      idx #1 - DUP 'idx STO ;
+    REP ;
+  { idx } LOCAL ;
+'sumpoints STO
+
+(For the second test, it's more about how many winning numbers are on each
+ card.  So this will convert our list of cards into a list of winning
+ numbers.)
+'::
+  ':: winnings LEN update ;
+  FOREACH ;
+'towinnings STO
+
+(This will check through just our card 'list' at card 'card' to see how many
+ cards we get.  Initially this was set up to recurse, but that is brute
+ forcey and was making my lap warm.  We were already backing through this
+ list as a looping convenience, which turns out to have been the correct way
+ to do it anyway, because we'll always be calculating later dependencies 
+ first.)
+'::
+  list DUP card GET DUP
+  (If there are winnings, they're the sum of n winnings after us.)
+  '::
+     (So grab a sum of that subset of the list.)
+     card + card #1 + SWAP SUBS sum
+     (Then add ourselves and store back.)
+     #1 + list SWAP card PUT 'list STO ;
+  (If there are no dependencies, forget the list and winnings and store 
+   back just ourselves.)
+  ':: DROP DROP list #1 card PUT 'list STO ;
+  IFTE 
+  (Oh yeah, and let the caller know what our winnings were.)
+  list card GET ;
+'onecard STO
+
+(And for the result for test 2, this rummages through the complete list of
+ cards and sums up the recursive results for each.)
+'::
+  DUP LEN 
+  '::
+    #0 (This is our sum.)
+    '::
+      (Decrement our card index.)
+      card #1 - 'card STO
+      (Calculate one card and add it to our sum.)
+      onecard +
+      (And repeat til we're done.)
+      card ; 
+    REP ; 
+  { card list } LOCAL ;
+'allcards STO

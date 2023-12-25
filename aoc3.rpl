@@ -1,0 +1,200 @@
+(Advent of Code 2023 - day 3)
+
+(The first test is here.)
+':: "aocinput3" fetchall checknums oknums sum ; 'firstpart STO
+
+(And the second is here.  Or just run getstars after the first part.)
+':: "aocinput3" fetchall getstars ; 'secondpart STO
+
+(Sum a list of values, from aoc1.)
+'::
+  (First check to see if there's anything to sum.)
+  DUP LEN DUP
+  '::
+    (Then bounce through the list add it all up.)
+    '::
+      #0
+      '::
+        idx #1 - 'idx STO
+        list idx GET + idx ;
+      REP ;
+      { idx list } LOCAL ;
+  ':: DROP DROP #0 ;
+  IFTE ;
+'sum STO
+
+(Couple of directories to hold our more complex items.  These aren't quite
+ objects, but they're handier than digging through lists.)
+
+(A symbol from the input text.)
+[dir: 
+  :x: #0
+  :y: #0
+  :char: "" ]
+'protosym STO
+
+(A number from the input text.)
+[dir:
+  :x: #0
+  :end: #0
+  :y: #0
+  :num: #0 ]
+'protonum STO
+
+(Empty space, according to the input text.)
+"." 'space STO
+
+(And the inevitable list of digits.)
+{ "0" "1" "2" "3" "4" "5" "6" "7" "8" "9" } 'digits STO
+
+(A couple of lists to hold the symbols and numbers as we find them, and
+ an output list to hold just the good numbers.)
+{} DUP DUP 'allsyms STO 'allnums STO 'oknums STO
+
+(See if a number has a symbol in its orbit.  Accepts a number and a symbol,
+ and returns a boolean.)
+'::
+  ':: 
+    (First, is the symbol within the x range?)
+    sym.x num.x #1 - >=
+    sym.x num.end #1 + <= AND
+    '::
+      (Then, is the symbol within the y range?)
+      sym.y num.y #1 - >=
+      sym.y num.y #1 + <= AND ; 
+    #0 IFTE ;
+  { num sym } LOCAL ;
+'inorbit STO
+
+(Run through one string and snatch any symbols or letters out of it.  Needs
+ a string, and 'line' for the line number.)
+'::
+  (Grab our string length for the loop.)
+  DUP LEN
+  (Start with empty copies of our num and sym directories.)
+  protonum CP protosym CP
+  ':: 
+    ':: 
+      str idx GET DUP
+      space == (Is it blank?)
+      (Yes, make sure we've closed out our number if there is one.)
+      ':: DROP endnum ;
+      (No, alas.  Is it a digit?)
+      ':: DUP digits SWAP HAS
+        (Yes, add it to our current string.)
+        ':: thisnum SWAP + 'thisnum STO 
+          (Add a start cursor to our number if needed.)
+          doingnum NOT
+          ':: #1 'doingnum STO 
+            idx 'num.x STO ;
+          IFT ;
+        (No, it's a symbol.  Still close out our number, if any, first.)
+        ':: endnum
+          'sym.char STO idx 'sym.x STO 
+          line 'sym.y STO
+          allsyms sym + 'allsyms STO
+          protosym CP 'sym STO ;
+        IFTE ;
+      IFTE
+      (And advance.)
+      idx #1 + DUP 'idx STO max < ; 
+    REP endnum ;
+  { sym num max str :thisnum: "" :doingnum: #0 :idx: #0 } LOCAL ;
+'oneline STO
+
+(Inside oneline, it's important to regularly check to see if a number is
+ over.  If it is, it has to be written out and a new empty number directory
+ stored in its place.)
+'::
+  doingnum
+  '::
+    (Record our final cursor position.)
+    idx #1 - 'num.end STO
+    line 'num.y STO
+    (And the integer version of the number.)
+    thisnum >INT 'num.num STO 
+    (Clear our interim variables.)
+    "" 'thisnum STO #0 'doingnum STO
+    (Append the current directory to our big list.)
+    allnums num + 'allnums STO
+    (And give us a fresh canvas.)
+    protonum CP 'num STO ;
+  IFT ;
+'endnum STO
+
+(Read from the file and evaluate oneline against all the lines within it.)
+':: READF DUP LEN
+  '::
+    ':: 
+      list line GET 
+      DUP LEN 'oneline 'DROP IFTE
+      line #1 + DUP 'line STO
+      max < ; 
+    REP ;
+  { max list :line: #0 } LOCAL ;
+'fetchall STO
+
+(Check through the symbols list and see if any orbit a number.)
+'::
+  allsyms LEN  
+  ':: #0
+    '::
+      (Back through our symbols list.)
+      idx #1 - DUP 'idx STO
+      (Grab a symbol and see if it orbits our number.)
+      DUP allsyms SWAP GET
+      num inorbit
+      (Yes, this is a fine thing and we can bail with the number and true.)
+      ':: DROP DROP num.num #1 BAIL ; IFT ;
+    REP ;
+  { idx num } LOCAL ;
+'hasfriends STO
+
+(Check through our numbers list and add any numbers to our final list if
+ the number has symbols in orbit.)
+'::
+  allnums LEN
+  '::
+    ':: 
+      idx #1 - DUP 'idx STO 
+      allnums idx GET hasfriends
+      ':: oknums SWAP + 'oknums STO ;
+      IFT ;
+    REP ;
+  { idx } LOCAL ;
+'checknums STO
+
+(Now, dig through just the asterisks.  Good thing we were hanging onto those!)
+':: allsyms LEN
+  '::
+    ':: idx #1 - DUP 'idx STO
+      allsyms idx GET 'sym STO
+      sym.char "*" ==
+      ':: findorbiters 
+        sum + 'sum STO ;
+      IFT ;
+    REP sum ;
+  { idx :sym: (nothin') :sum: #0 } LOCAL ;
+'getstars STO
+
+(Find all the orbiters for a given symbol 'sym', and return the product of
+ those numbers if there's exactly two.)
+'::
+  allnums LEN
+  '::
+    ':: idx #1 - DUP 'idx STO
+      allnums idx GET DUP sym SWAP inorbit
+      (If we find an orbiter, add its number, not the whole directory.)
+      ':: orbiters SWAP 'ournum STO ournum.num + 'orbiters STO ;
+      'DROP
+      IFTE ;
+    REP 
+    (Then, see if there are just two.)
+    orbiters LEN #2 ==
+    (Yes: return the product.)
+    ':: orbiters OBJ> DROP * ;
+    (No: return zero.)
+    #0 
+    IFTE ;
+  { idx :ournum: (nothin) :orbiters: {} } LOCAL ;
+'findorbiters STO

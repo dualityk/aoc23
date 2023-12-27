@@ -1,0 +1,150 @@
+(Advent of Code 2023 - day 8)
+
+':: "aoc8.rpl" DSK> ; 'rl STO
+
+(Our first test.  Make sure we stop at ZZZ, and chase through the steps:)
+':: storeall 
+  'foundit 'map.ZZZ STO
+  map.AAA chasesteps ; 
+'firsttest STO
+
+(Our second test:)
+':: storeall chaseghosts ; 'secondtest STO
+
+(Make a map directory and read our input file.)
+MKDIR 'map STO
+"aocinput8" READF 'infile STO
+
+(For our second test, hang onto all the A symbols and Z symbols.)
+{} DUP 'allA STO 'allZ STO
+
+(Parse a line of our input.  This makes me dream of a general purpose text
+ parser that could take a line of expected input along with field delimiters
+ and turn it into something, but that's not what this does.  It just blindly
+ plucks three-character names out of each line, storing a list to the map
+ directory under the given symbol.)
+'::
+  DUP DUP
+  #7 #9 SUBS >SYM 'map SWAP +
+  SWAP
+  #12 #14 SUBS >SYM 'map SWAP +
+  #2 >LST
+  SWAP #0 #2 SUBS DUP
+  hasAZ
+  >SYM 'map SWAP + STO ;
+STATICN 'storeone STO
+
+(See if a name ends in A or Z before handing it back to be stored.  This is
+ required for the second test.)
+'::
+  ':: name #1 RIGHT DUP "A" ==
+    ':: (It starts with A, so add its FQDN to allA list.)
+      DROP allA 'map name >SYM + + 'allA STO ;
+    ':: (It doesn't start with A, does it start with Z?)
+      "Z" ==
+      ':: allZ 'map name >SYM + + 'allZ STO ;
+      IFT ;
+    IFTE ;
+  { name } LOCAL ;
+'hasAZ STO
+
+(This is what ends our search, when placed in the appropriate place in the
+ map.)
+':: steps BAIL ;
+'foundit STO
+
+'::
+  (Store our L/R directions first.)
+  infile #0 GET 'directions STO
+  (Then from line 2 to EOF, evaluate storeone against each line.)
+  infile DUP LEN #1 -
+  '::
+    '::
+      DUP idx GET storeone
+      idx #1 + DUP 'idx STO max < ;
+    REP DROP ;
+  { max :idx:#2 } LOCAL ;
+'storeall STO
+
+(Chase along til we get to ZZZ.  This is our first challenge.)
+'::
+  
+  (Now, until the heat death of the universe, chase down our answer
+   by zigging and zagging through the maps lists.  We start from wherever
+   we're told to start.)
+
+  directions LEN
+  '::
+    directions idx GET "L" ==
+    SWAP OBJ> DROP IFTE
+    steps #1 + 'steps STO    
+    idx #1 + DUP 'idx STO max ==
+    ':: #0 'idx STO ;
+    IFT SELF EVAL ;
+  { max :idx:#0 :steps:#1 } LOCAL 
+  (This comment keeps our locals from leaking.) ;
+STATICN 'chasesteps STO
+
+(Chase along from all A's til we get to all Z's.  This is our second 
+ challenge.  The first try of this was accidentally a brute force solution,
+ as my toasty lap discovered a minute or two in.)
+'::
+  (First, replace all our Z-terminated map entries with one that stops us.)
+  allZ
+  ':: 'foundit SWAP STO ; FOREACH DROP
+
+  (Then, chase each A-terminated map entry to the end, and store back how
+   many steps each took.)
+  allA
+  ':: EVAL chasesteps update ; FOREACH
+
+  (Now, get our least common multiple, which is the answer.)
+  lcmofawholegoddamnedlist ;
+'chaseghosts STO
+
+(Least common multiple of an entire list.  This unrolls the list, then uses
+ code multiplication to progressively evaluate |a*b|/gcd[a,b] against all
+ the elements.  This shamed me into adding ROLL/ROLLD and DUP2 to the
+ language, which it should already have had.)
+'::
+  OBJ>
+  #1 -
+  ':: DUP2 * #3 ROLLD GCD / ; SWAP * EVAL ; 
+'lcmofawholegoddamnedlist STO
+
+
+(NIST's binary greatest common denominator algorithm.)
+'::
+  '::
+    (While u and v are both odd, halve them and double g.)
+    '::
+      u ODD NOT v ODD NOT AND DUP
+      '::
+        u #2 / 'u STO
+        v #2 / 'v STO
+        g #2 * 'g STO ;
+      IFT ;
+    REP
+    '::
+      (While u>0...)
+      u #0 > DUP
+      '::
+        (If u is even, halve u.)
+        u ODD 
+        ':: 
+          v ODD
+          (If u and v are both odd, the greater of u or v becomes |u-v|/2.)
+          ':: u v - ABS #2 /
+            u v <
+            ''v ''u IFTE STO ;
+          (Otherwise if v is even, halve v.)
+          ':: v #2 / 'v STO ;
+          IFTE ;
+        ':: u #2 / 'u STO ; 
+        IFTE ;
+      IFT ;
+    REP
+    (Finally return v*g.)
+    v g * ;
+  { :g: #1 v u } LOCAL ;
+'GCD STO

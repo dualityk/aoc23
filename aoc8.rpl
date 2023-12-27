@@ -1,7 +1,5 @@
 (Advent of Code 2023 - day 8)
 
-':: "aoc8.rpl" DSK> ; 'rl STO
-
 (Our first test.  Make sure we stop at ZZZ, and chase through the steps:)
 ':: storeall 
   'foundit 'map.ZZZ STO

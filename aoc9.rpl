@@ -1,0 +1,104 @@
+(Advent of Code 2023 - day 9)
+
+(For the first test:)
+':: 'predictnext 'predict STO getdata sumextrapolations ;
+'firsttest STO
+
+(For the second test:)
+':: 'predictprevious 'predict STO getdata sumextrapolations ;
+'secondtest STO
+
+(Obtain our data.)
+':: "aocinput9" READF
+  (Ignore last empty line.)
+  DUP LEN #2 - #0 SWAP SUBS
+  (Turn every line into a list.)
+  ':: " }" + "{ " SWAP + >OBJ
+    (And turn every list into integers.)
+    ':: >INT update ; FOREACH
+    update ;
+  FOREACH ;
+'getdata STO
+
+(From a list, generate a list of differences.)
+'::
+  (Get the first thing out of the list, then pass along the rest.) 
+  DUP #0 GET SWAP DUP LEN #1 SWAP SUBS
+  '::
+    (This list is the old length minus one.  It's updated an element at a time
+     with FOREACH:)
+    ':: 
+      (This saves our issued value for the next run, and gives us a
+       difference.)
+      DUP #3 ROLLD SWAP -
+      (Then we check to see if it's zero, and AND it with our flag.)
+      DUP NOT zero AND 'zero STO
+      (Finally the new value is written back to the list.)
+      update ;
+    FOREACH
+    (And discard our last subtrahend, leaving new list and flag on the stack.)
+    SWAP DROP zero NOT ;
+  { :zero: #1 } LOCAL ;
+'difference STO
+
+(From a list, generate a predicted previous value.  I did not put my algebra
+ hat on; I put my dunce cap on, but this does work.)
+'::
+  (Our first value for the first line goes in sum.)
+  DUP #1 LEFT
+  '::
+    '::
+      (Get our difference list.)
+      difference
+      '::
+        (There's more to get, so record to our sum list and repeat.)
+        DUP #1 LEFT OBJ> DROP sum SWAP + 'sum STO #1 ;
+      '::
+        (We got to all zeros, so return our sum list and don't repeat.)
+        DROP sum #0 + #0 ;
+      IFTE  ;
+    REP ;
+  { sum } LOCAL 
+  (Now, take our sum list -- prepared forward -- and subtract up a
+   storm in reverse.)
+  OBJ> #1 - ':: - ; SWAP * EVAL ;
+'predictprevious STO
+
+(From a list, predict the next value.)
+'::
+  (Our final value for the first line goes in sum.)
+  DUP #1 RIGHT OBJ> DROP
+  '::
+    '::
+      (Get our difference list.)
+      difference
+      '::
+        (There's more to get, so add to our sum and repeat.)
+        DUP #1 RIGHT OBJ> DROP sum + 'sum STO #1 ;
+      '::
+        (We got to all zeros, so return our sum and don't repeat.)
+        DROP sum #0 ;
+      IFTE  ;
+    REP ;
+  { sum } LOCAL ;
+'predictnext STO
+
+
+(For our first test, sum all the extrapolated values.)
+'::
+  DUP LEN
+  #0 SWAP (this is our sum)
+  '::
+    '::
+      idx #1 - 'idx STO
+      (Fetch our list out of the big list and make a prediction.)
+      SWAP DUP idx GET predict
+      (Now slide our sum up and add to it.)
+      #3 ROLL +
+      (And repeat as long as idx>0.)
+      idx ;
+    REP ;
+  { idx } LOCAL 
+  (Finally discard the list.)
+  SWAP DROP ;
+'sumextrapolations STO

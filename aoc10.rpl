@@ -1,0 +1,257 @@
+(Advent of Code 2023 - day 10)
+
+(The first test is pretty straightforward:)
+':: getdata chasesnake ; 'firsttest STO
+
+(The second test is a god dang triumph:)
+':: getdata chasesnake DROP declutter tobmp findinterior tallyspaces ;
+'secondtest STO
+
+(Useful direction constants.)
+[dir:
+  :blocked: #0
+  :up: #1
+  :right: #2
+  :down: #3
+  :left: #4 ]
+'d STO
+
+(A list of the tile characters.)
+{ "." "7" "F" "J" "L" "-" "|" }
+'tilechars STO
+
+(A list of the tile glyphs, for paint purposes.)
+{ { #0 #0 } { #0 #0 } { #0 #0 } { #1 #0 } { #1 #0 } { #0 #0 } { #1 #0 } }
+'glyph1 STO
+{ { #0 #0 } { #1 #0 } { #1 #1 } { #1 #0 } { #1 #1 } { #1 #1 } { #1 #0 } } 
+'glyph2 STO
+
+(This list is a lookup table: looking up the list for the tile you're on,
+ then looking up based on the direction you're traveling, shows which way
+ our snake pal must go.)
+{ { (.) d.blocked d.blocked d.blocked d.blocked }
+  { (7) d.left    d.down    d.blocked d.blocked }
+  { (F) d.right   d.blocked d.blocked d.down    }
+  { (J) d.blocked d.up      d.left    d.blocked }
+  { (L) d.blocked d.blocked d.right   d.up      }
+  { (-) d.blocked d.right   d.blocked d.left    }
+  { (|) d.up      d.blocked d.down    d.blocked } }
+'tilepaths STO
+
+(This list is also a lookup table, which will generate moves based upon
+ a direction if GETE'd with that direction.)
+{ :: steps BAIL ;
+  :: snakey #1 - 'snakey STO ;
+  :: snakex #1 + 'snakex STO ;
+  :: snakey #1 + 'snakey STO ;
+  :: snakex #1 - 'snakex STO ; }
+'moves STO
+
+(Fetch a map tile from X and Y coordinates.)
+':: 
+  map SWAP GET (Fetch row)
+      SWAP GET (Fetch column) ;
+'fetchtile STO
+
+(Record a new tile number to X and Y coordinates.)
+'::
+  ':: map DUP y GET tile x PUT y PUT 'map STO ;
+  { y x tile } LOCAL ;
+'recordtile STO
+
+(Generate a pair of starting directions from the snake's current position,
+ by fetching the tile paths from the neighboring tiles and seeing if they're
+ blocked coming from our direction.)
+'::
+  tilepaths snakex snakey #1 - fetchtile GET
+  d.up GETE d.blocked != 'd.up IFT
+  tilepaths snakex #1 + snakey fetchtile GET
+  d.right GETE d.blocked != 'd.right IFT
+  tilepaths snakex snakey #1 + fetchtile GET
+  d.down GETE d.blocked != 'd.down IFT
+  tilepaths snakex #1 - snakey fetchtile GET
+  d.left GETE d.blocked != 'd.left IFT ;
+'getstartdirs STO
+
+(Match an item in a list.  This one returns nothing if it finds nothing, 
+ which is poor behavior, and an index if it finds a match.  Accepts item,
+ list.)
+'::
+  DUP LEN
+  '::
+    '::
+      idx #1 - DUP 'idx STO
+      list idx GET char ==
+      'BAIL IFT ;
+    REP ;
+  { idx list char } LOCAL ;
+'match STO
+
+(From our data file, build a two dimensional tile array using integers.)
+'::
+  "aocinput10" READF DUP 'basedata STO
+  (Get its number of lines, minus the newline at the end.)
+  DUP LEN #1 - SWAP
+  (And also its number of characters per line.)
+  #0 GET LEN
+  (Now loop and turn all them characters into red-blooded American integers.)
+  '::
+    {} (Our map.)
+    '::
+      #0 'idx STO
+      {} (Our processed line.)
+      basedata idy GET 'text STO (Our current text.)
+      '::
+        text idx GET DUP "S" ==
+        (If it's the snake, store that separately and return a blank space.)
+        ':: DROP idx 'snakex STO idy 'snakey STO #0 + ;
+        (Otherwise match it to one of our tile types.)
+        ':: tilechars match + ;
+        IFTE
+        idx #1 + DUP 'idx STO maxx < ;
+      REP
+      (Because list+list concatenates, it goes in a list first before being
+       added to our map.)
+      #1 >LST +
+      idy #1 + DUP 'idy STO maxy < ;
+    REP ;
+  { maxx maxy :idy:#0 :idx:#0 :text:"" } LOCAL 
+  'map STO ;
+'getdata STO
+
+(Chase the snake around the toob.  This is what the first test requires, but
+ since we have to mark out what our toob actually is, we'll negate every
+ tile we encounter also.)
+'::
+  (First pick a direction; either of them will do.)
+  getstartdirs DROP
+  '::
+    DUP
+    (Move the snake.)
+    moves SWAP GETE
+    (Get our next direction list.)
+    tilepaths snakex snakey fetchtile DUP
+    (But first mark the tile we step on as having been stepped upon.)
+    NEG snakex snakey recordtile
+    GET
+    (And our next direction.)
+    SWAP GETE
+    (Increment our steps...)
+    steps #1 + 'steps STO
+    (Then loop forever.)
+    SELF EVAL ;
+  { :steps: #0 } LOCAL
+
+  (Encountering a blocked tile means the snake fell out the other end.
+   This means halfway around the tube is half the steps we took.)
+  SWAP DROP #2 / ;
+'chasesnake STO
+
+(The second part is almost certainly a flood fill algorithm.  For starters,
+ we have to clean out everything that isn't part of the loop.)
+'::
+  (If it's negative, negate it.  Everything else is a big fat zero.)
+  map
+  '::
+    '::
+      DUP #0 <
+      'NEG
+      ':: DROP #0 ;
+      IFTE update ;
+    FOREACH update ;
+  FOREACH
+  'map STO
+  
+  (I feel roughly 23% bad about hard coding the snake entrance tile type
+   here, but on the other hand, I feel 77% good about it considering the
+   rest of the work required.)
+  #4 snakex snakey recordtile ;
+'declutter STO
+
+(Turn our map into a 2x oversampled bitmap, so we can use a more general
+ four directional flood fill to find our inner tiles.)
+'::
+  {} (New bitmap.)
+  map
+  '::
+    {} {} #3 ROLL
+    '::
+      (Juggle some things and add our first line to the glyph list.) 
+      DUP glyph1 SWAP GET #4 ROLL SWAP +
+      (Then do our second line.)
+      #3 ROLLD glyph2 SWAP GET + ;
+    FOREACH 
+    DROP #2 >LST + ;
+  FOREACH DROP 'ourbmp STO ;
+'tobmp STO
+
+(Now do a flood fill starting from the center.)
+'::
+  (Starting coordinates in the middle somewheres.)
+  ourbmp LEN #2 / DUP
+  mspaint ;
+'findinterior STO
+
+(See if a pixel is set in our bitmap.)
+'::
+  ourbmp SWAP GET SWAP GET ;
+'pixset? STO
+
+(Set a pixel in our bitmap.)
+'::
+  ':: ourbmp DUP y GET #1 x PUT y PUT 'ourbmp STO ;
+  { y x } LOCAL ; 
+'setpix STO
+
+(Basic flood fill algorithm, from Wikipedia:
+ 1. Are we already done here?
+ 2. Set this pixel
+ 3. Recurse north, east, south, and west)
+'::
+  DUP2 pixset?
+  (If the pixel is set, we're already done.)
+  ':: DROP DROP ;
+  '::
+    (Not done: first set the pixel under us.)
+    DUP2 setpix
+    (Then take a look around.)
+    DUP2 #1 - mspaint
+    DUP2 #1 + mspaint
+    DUP2 SWAP #1 + SWAP mspaint
+    SWAP #1 - SWAP mspaint ; 
+  IFTE ;
+'mspaint STO
+
+(Go through the decluttered map, then reference our painted bitmap to see
+ which empty spaces got painted and count them up.)
+'::
+  map LEN DUP
+  '::
+    '::
+      (Fetch one row of the map.)
+      map idy #1 - DUP 'idy STO GET
+      maxx 'idx STO
+      '::
+        (Fetch one tile and invert it.)
+        DUP idx #1 - DUP 'idx STO GET NOT
+        (If zero, get the equivalent bitmap pixel and see if it's painted.)
+        '::
+          idx #2 * idy #2 * pixset?
+          (Increment our count if so.)
+          ':: count #1 + 'count STO ;
+          IFT ;
+        IFT idx ;
+      REP DROP idy ;
+    REP count ;
+  { idy maxx :idx: #0 :count: #0 } LOCAL ;
+'tallyspaces STO
+
+(To see better, the map is printable here.)
+'::
+  map ':: ':: tilechars SWAP GET DISPN ; FOREACH DROP "" DISP ; FOREACH DROP ;
+'showmap STO
+
+(Same with bitmap.)
+'::
+  ourbmp ':: ':: "#" "." IFTE DISPN ; FOREACH DROP "" DISP ; FOREACH DROP ;
+'showbmp STO
